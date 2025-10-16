@@ -1,0 +1,76 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-short
+  labels:
+    app: linkiguess-short
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-short
+  template:
+    metadata:
+      labels:
+        app: linkiguess-short
+        traefik.enable: "true"
+        traefik.http.routers.linkiguess-short.rule: Host(`short.linkiguess.localhost`)
+        traefik.http.routers.linkiguess-short.entrypoints: web,websecure
+        traefik.http.routers.linkiguess-short.tls: "true"
+        traefik.http.services.linkiguess-short.loadbalancer.server.port: "80"
+    spec:
+      containers:
+        - name: service
+          image: linkiguess-short-service
+          ports:
+            - containerPort: 80
+          env:
+            - name: SHORT_SERVICE_LOG_RETENTION
+              value: "30"
+            - name: SHORT_SERVICE_SERVER_NAME
+              value: "short.linkiguess.localhost"
+            - name: SHORT_SERVICE_FALLBACK_URL
+              value: "https://linkiguess.localhost"
+            - name: SHORT_SERVICE_DB_USER
+              value: "short"
+            - name: SHORT_SERVICE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: LINK_DB_PASSWORD
+            - name: SHORT_SERVICE_DB_NAME
+              value: "short"
+            - name: SHORT_SERVICE_DB_FQDN
+              value: "linkiguess-short-db-pod"
+            - name: SHORT_SERVICE_DB_MAX_CONNS
+              value: "100"
+            - name: SHORT_SERVICE_CACHE_FQDN
+              value: "linkiguess-short-cache-pod"
+            - name: SHORT_SERVICE_ANALYTIC_QUEUE_FQDN
+              value: "linkiguess-analytic-nats-pod"
+            - name: SHORT_SERVICE_ANALYTIC_QUEUE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: ANALYTIC_NATS_PASSWORD
+          volumeMounts:
+            - name: short-service-source
+              mountPath: /root/project
+            - name: short-service-log
+              mountPath: /var/log/short-service
+            - name: short-service-cargo
+              mountPath: /root/.cargo
+      volumes:
+        - name: short-service-source
+          hostPath:
+            path: "./source/short-service"
+            type: Directory
+        - name: short-service-log
+          hostPath:
+            path: "./source/short-service/app/log"
+            type: Directory
+        - name: short-service-cargo
+          hostPath:
+            path: "/tmp/linkiguess/short-service-cargo"
+            type: Directory

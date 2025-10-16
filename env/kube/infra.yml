@@ -1,0 +1,167 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-node-exporter
+  labels:
+    app: linkiguess-node-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-node-exporter
+  template:
+    metadata:
+      labels:
+        app: linkiguess-node-exporter
+    spec:
+      containers:
+        - name: service
+          image: prom/node-exporter:latest
+          ports:
+            - containerPort: 9100
+          volumeMounts:
+            - name: podman
+              mountPath: /var/run/podman.sock
+              subPath: podman.sock
+      volumes:
+        - name: podman
+          hostPath:
+            path: /run/user/1000/podman/
+            type: Directory
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["0.0.0.0:9090"]
+            labels:
+              app: 'prometheus'
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['linkiguess-node-exporter-pod:9100']
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-prometheus
+  labels:
+    app: linkiguess-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-prometheus
+  template:
+    metadata:
+      labels:
+        app: linkiguess-prometheus
+    spec:
+      containers:
+        - name: service
+          image: prom/prometheus:latest
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://linkiguess-prometheus-pod:9090
+        isDefault: true
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-grafana
+  labels:
+    app: linkiguess-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-grafana:latest
+  template:
+    metadata:
+      labels:
+        app: linkiguess-grafana
+        traefik.enable: "true"
+        traefik.http.routers.linkiguess-grafana.rule: Host(`grafana.admin.linkiguess.localhost`)
+        traefik.http.routers.linkiguess-grafana.entrypoints: websecure
+        traefik.http.routers.linkiguess-grafana.tls: "true"
+        traefik.http.services.linkiguess-grafana.loadbalancer.server.port: "3000"
+    spec:
+      containers:
+        - name: service
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_INSTANCE_NAME
+              value: "linkiguess-grafana"
+            - name: GF_SERVER_DOMAIN
+              value: "grafana.admin.linkiguess.localhost"
+            - name: GF_SERVER_URL
+              value: "https://grafana.admin.linkiguess.localhost"
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: GRAFANA_INITIAL_PASSWORD
+          volumeMounts:
+            - name: grafana-config
+              mountPath: /etc/grafana/provisioning/datasources/prometheus.yaml
+              subPath: prometheus.yaml
+            - name: dashboard-json
+              mountPath: /etc/grafana/provisioning/dashboards/
+            - name: grafana-pv
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: grafana-config
+          configMap:
+            name: grafana-config
+        - name: dashboard-json
+          hostPath:
+            path: "./env/grafana"
+            type: Directory
+        - name: grafana-pv
+          persistentVolumeClaim:
+            claimName: grafana-pvc

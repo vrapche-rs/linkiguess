@@ -1,0 +1,6 @@
+# copy to /etc/hosts
+
+127.0.0.1 linkiguess.localhost
+127.0.0.1 short.linkiguess.localhost
+127.0.0.1 traefik.admin.linkiguess.localhost
+127.0.0.1 grafana.admin.linkiguess.localhost

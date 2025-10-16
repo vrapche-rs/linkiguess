@@ -1,0 +1,49 @@
+---
+# dev secrets can be constant
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: linkiguess-short-nats-analytics-config
+data:
+  nats.conf: |
+    listen: 0.0.0.0:4222
+    authorization: {
+        token: "6101b373a4fca4a11eeba47e5878ceeb595a679afac7c90e9118f2cf61478bb7"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-analytic-nats
+  labels:
+    app: linkiguess-analytic-nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-analytic-nats
+  template:
+    metadata:
+      labels:
+        app: linkiguess-analytic-nats
+    spec:
+      containers:
+        - name: service
+          image: nats:2.9-alpine
+          ports:
+            - containerPort: 4222
+              name: client
+          volumeMounts:
+            - name: nats-config
+              mountPath: /etc/nats/nats.conf
+              subPath: nats.conf
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+      volumes:
+        - name: nats-config
+          configMap:
+            name: linkiguess-short-nats-analytics-config

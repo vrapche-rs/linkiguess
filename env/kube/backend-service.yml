@@ -1,0 +1,63 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-backend
+  labels:
+    app: linkiguess-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-backend
+  template:
+    metadata:
+      labels:
+        app: linkiguess-backend
+        traefik.enable: "true"
+        traefik.http.routers.linkiguess-backend.rule: Host(`linkiguess.localhost`) && PathPrefix(`/api`)
+        traefik.http.routers.linkiguess-backend.entrypoints: web,websecure
+        traefik.http.routers.linkiguess-backend.tls: "true"
+        traefik.http.services.linkiguess-backend.loadbalancer.server.port: "80"
+    spec:
+      containers:
+        - name: service
+          image: linkiguess-backend-service
+          ports:
+            - containerPort: 80
+          env:
+            - name: SHORT_SERVICE_LOG_RETENTION
+              value: "30"
+            - name: SHORT_SERVICE_DB_USER
+              value: "short"
+            - name: SHORT_SERVICE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: LINK_DB_PASSWORD
+            - name: SHORT_SERVICE_DB_NAME
+              value: "short"
+            - name: SHORT_SERVICE_DB_FQDN
+              value: "linkiguess-short-db-pod"
+            - name: SHORT_SERVICE_DB_MAX_CONNS
+              value: "100"
+          volumeMounts:
+            - name: backend-service-source
+              mountPath: /root/project
+            - name: backend-service-log
+              mountPath: /var/log/backend-service
+            - name: backend-service-cargo
+              mountPath: /root/.cargo
+      volumes:
+        - name: backend-service-source
+          hostPath:
+            path: "./source/backend-service"
+            type: Directory
+        - name: backend-service-log
+          hostPath:
+            path: "./source/backend-service/app/log"
+            type: Directory
+        - name: backend-service-cargo
+          hostPath:
+            path: "/tmp/linkiguess/backend-service-cargo"
+            type: Directory

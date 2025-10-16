@@ -1,0 +1,58 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-purger
+  labels:
+    app: linkiguess-purger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-purger
+  template:
+    metadata:
+      labels:
+        app: linkiguess-purger
+    spec:
+      containers:
+        - name: service
+          image: linkiguess-purger-service
+          env:
+            - name: PURGER_SERVICE_LOG_RETENTION
+              value: "30"
+            - name: PURGER_SERVICE_INTERVAL
+              value: "3600"
+            - name: PURGER_SERVICE_DB_NAME
+              value: "short"
+            - name: PURGER_SERVICE_DB_USER
+              value: "short"
+            - name: PURGER_SERVICE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: LINK_DB_PASSWORD
+            - name: PURGER_SERVICE_DB_FQDN
+              value: "linkiguess-short-db-pod"
+            - name: PURGER_SERVICE_DB_MAX_CONNS
+              value: "100"
+          volumeMounts:
+            - name: purger-service-source
+              mountPath: /root/project
+            - name: purger-service-log
+              mountPath: /var/log/purger-service
+            - name: purger-service-cargo
+              mountPath: /root/.cargo
+      volumes:
+        - name: purger-service-source
+          hostPath:
+            path: "./source/purger-service"
+            type: Directory
+        - name: purger-service-log
+          hostPath:
+            path: "./source/purger-service/app/log"
+            type: Directory
+        - name: purger-service-cargo
+          hostPath:
+            path: "/tmp/linkiguess/purger-service-cargo"
+            type: Directory

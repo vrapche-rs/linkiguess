@@ -1,0 +1,80 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-short-db
+  labels:
+    app: linkiguess-short-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-short-db
+  template:
+    metadata:
+      labels:
+        app: linkiguess-short-db
+    spec:
+      containers:
+        - name: service
+          image: postgres:18-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: short
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: LINK_DB_PASSWORD
+            - name: POSTGRES_DB
+              value: short
+          volumeMounts:
+            - name: short-service-db-init
+              mountPath: /docker-entrypoint-initdb.d
+            - name: short-service-db-dev
+              mountPath: /devscript
+          resources:
+            limits:
+              memory: "1Gi"
+      volumes:
+        - name: short-service-db-init
+          hostPath:
+            path: "./source/short-service-db/init"
+            type: Directory
+        - name: short-service-db-dev
+          hostPath:
+            path: "./source/short-service-db/dev"
+            type: Directory
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-short-cache
+  labels:
+    app: linkiguess-short-cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-short-cache
+  template:
+    metadata:
+      labels:
+        app: linkiguess-short-cache
+    spec:
+      containers:
+        - name: service
+          image: redis:7.2-alpine
+          ports:
+            - containerPort: 6379
+          env:
+            - name: REDIS_MAXMEMORY_POLICY
+              value: "allkeys-lru"
+            - name: REDIS_DEFAULT_TTL
+              value: "3600"
+          resources:
+            limits:
+            memory: "1Gi"

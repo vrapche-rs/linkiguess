@@ -1,0 +1,106 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-config
+data:
+  traefik.yaml: |
+    api:
+      dashboard: true
+    entryPoints:
+      web:
+        address: ":80"
+      websecure:
+        address: ":443"
+    providers:
+      docker: {}
+      file:
+        directory: "/etc/traefik/dynamic"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-config-dynamic-tls
+data:
+  dynamic.yaml: |
+    tls:
+      stores:
+        default:
+          defaultCertificate:
+            certFile: /certs/linkiguess.crt
+            keyFile: /certs/linkiguess.key
+    http:
+      routers:
+        dashboard:
+          rule: Host(`traefik.admin.linkiguess.localhost`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+          service: api@internal
+          middlewares:
+            - treafikAuth
+          entryPoints:
+            - websecure
+          tls: {}
+      middlewares:
+        treafikAuth:
+          basicAuth:
+            users:
+              - "admin:$2y$10$x7rdVyaDENT5AQwJ01l3ou0FAKOF6dKQSQsaatSv52cpFcYMIiIQS"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-lb
+  labels:
+    app: linkiguess-lb
+    traefik.enable: "false"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-lb
+  template:
+    metadata:
+      labels:
+        app: linkiguess-lb
+    spec:
+      containers:
+        - name: service
+          image: traefik:v3.5
+          ports:
+            - containerPort: 80
+              hostPort: 80
+            - containerPort: 443
+              hostPort: 443
+            - containerPort: 8080
+              hostPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/traefik/traefik.yaml
+              subPath: traefik.yaml
+            - name: config-dynamic-tls
+              mountPath: /etc/traefik/dynamic/dynamic.yaml
+              subPath: dynamic.yaml
+            - name: podman
+              mountPath: /var/run/docker.sock
+              subPath: podman.sock
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+          env:
+            - name: DOCKER_HOST
+              value: unix:///var/run/docker.sock
+      volumes:
+        - name: config
+          configMap:
+            name: traefik-config
+        - name: config-dynamic-tls
+          configMap:
+            name: traefik-config-dynamic-tls
+        - name: podman
+          hostPath:
+            path: /run/user/1000/podman/
+            type: Directory
+        - name: certs
+          hostPath:
+            path: "./env//certs/"
+            type: Directory

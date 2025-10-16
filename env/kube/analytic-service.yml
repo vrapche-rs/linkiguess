@@ -1,0 +1,67 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-analytic
+  labels:
+    app: linkiguess-analytic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-analytic
+  template:
+    metadata:
+      labels:
+        app: linkiguess-analytic
+    spec:
+      containers:
+        - name: service
+          image: linkiguess-analytic-service
+          env:
+            - name: ANALYTIC_SERVICE_LOG_RETENTION
+              value: "30"
+            - name: ANALYTIC_BATCH_WORKERS_COUNT
+              value: "4"
+            - name: ANALYTIC_WORKER_MESSAGE_QUEUE
+              value: "64"
+            - name: ANALYTIC_SERVICE_DB_NAME
+              value: "short"
+            - name: ANALYTIC_SERVICE_DB_USER
+              value: "short"
+            - name: ANALYTIC_SERVICE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: LINK_DB_PASSWORD
+            - name: ANALYTIC_SERVICE_DB_FQDN
+              value: "linkiguess-short-db-pod"
+            - name: ANALYTIC_SERVICE_DB_MAX_CONNS
+              value: "100"
+            - name: ANALYTIC_SERVICE_ANALYTIC_QUEUE_FQDN
+              value: "linkiguess-analytic-nats-pod"
+            - name: ANALYTIC_SERVICE_ANALYTIC_QUEUE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: linkiguess-secrets
+                  key: ANALYTIC_NATS_PASSWORD
+          volumeMounts:
+            - name: analytic-service-source
+              mountPath: /root/project
+            - name: analytic-service-log
+              mountPath: /var/log/analytic-service
+            - name: analytic-service-cargo
+              mountPath: /root/.cargo
+      volumes:
+        - name: analytic-service-source
+          hostPath:
+            path: "./source/analytic-service"
+            type: Directory
+        - name: analytic-service-log
+          hostPath:
+            path: "./source/analytic-service/app/log"
+            type: Directory
+        - name: analytic-service-cargo
+          hostPath:
+            path: "/tmp/linkiguess/anaytic-service-cargo"
+            type: Directory

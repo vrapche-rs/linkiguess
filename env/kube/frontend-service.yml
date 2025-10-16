@@ -1,0 +1,40 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkiguess-frontend
+  labels:
+    app: linkiguess-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linkiguess-frontend
+  template:
+    metadata:
+      labels:
+        app: linkiguess-frontend
+        traefik.enable: "true"
+        traefik.http.middlewares.redirect-to-https.redirectscheme.scheme: https
+        traefik.http.middlewares.redirect-to-https.redirectscheme.permanent: "true"
+        traefik.http.routers.linkiguess-frontend-http.rule: Host(`linkiguess.localhost`) && !PathPrefix(`/api`)
+        traefik.http.routers.linkiguess-frontend-http.entrypoints: web
+        traefik.http.routers.linkiguess-frontend-http.middlewares: redirect-to-https
+        traefik.http.routers.linkiguess-frontend.rule: Host(`linkiguess.localhost`)
+        traefik.http.routers.linkiguess-frontend.entrypoints: websecure
+        traefik.http.routers.linkiguess-frontend.tls: "true"
+        traefik.http.services.linkiguess-frontend.loadbalancer.server.port: "80"
+    spec:
+      containers:
+        - name: service
+          image: linkiguess-frontend-service
+          ports:
+            - containerPort: 5173
+          volumeMounts:
+            - name: frontend-service-source
+              mountPath: /root/project
+      volumes:
+        - name: frontend-service-source
+          hostPath:
+            path: "./source/frontend-service"
+            type: Directory
