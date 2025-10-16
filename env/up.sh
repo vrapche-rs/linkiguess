@@ -1,6 +1,7 @@
 #!/bin/sh
 
 ./env/tls-init.sh
+./env/build.sh
 
 mkdir -p /tmp/linkiguess/anaytic-service-cargo
 mkdir -p /tmp/linkiguess/short-service-cargo
